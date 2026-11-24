@@ -30,6 +30,30 @@ python3 -m venv .venv
 .venv/bin/pip install -e .
 ```
 
+## Upgrade
+
+Check the installed version with `p4k --version`.
+
+If you installed from git, upgrade to the latest version with:
+
+```sh
+pipx upgrade p4k
+```
+
+`pipx upgrade` only installs a new build when the version number changed. To force a reinstall from the latest commit regardless of the version (for example, to get unreleased changes), use:
+
+```sh
+pipx reinstall p4k
+```
+
+To install a specific release or commit:
+
+```sh
+pipx install --force "git+https://github.com/luciangutu/p4k.git@<tag-or-commit>"
+```
+
+For a local development checkout installed with `pip install -e .`, code changes take effect immediately; only re-run `pip install -e .` when dependencies in `pyproject.toml` change.
+
 ## Usage
 
 ```sh
@@ -84,6 +108,11 @@ p4k/screens/changes.py changelist list screen
 p4k/screens/detail.py  files + diff screen
 p4k/app.py             Textual app and CLI
 ```
+
+## Releasing
+
+1. Bump `__version__` in `p4k/__init__.py` (the only place the version is defined).
+2. Commit, then tag and push: `git tag v<version> && git push origin main v<version>`.
 
 ## License
 

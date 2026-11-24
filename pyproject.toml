@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "p4k"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Terminal changelist browser for Perforce, in the spirit of gitk"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -35,3 +35,7 @@ p4k = "p4k.app:main"
 
 [tool.setuptools.packages.find]
 include = ["p4k*"]
+
+[tool.setuptools.dynamic]
+# Single source of truth for the version: p4k/__init__.py
+version = { attr = "p4k.__version__" }
