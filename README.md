@@ -13,6 +13,14 @@ A terminal changelist browser for Perforce (Helix Core), in the spirit of `gitk`
 
 ## Install
 
+With [pipx](https://pipx.pypa.io/) (recommended):
+
+```sh
+pipx install git+https://github.com/luciangutu/p4k.git
+```
+
+From a local checkout, for development:
+
 ```sh
 python3 -m venv .venv
 .venv/bin/pip install -e .

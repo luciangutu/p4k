@@ -24,7 +24,11 @@ classifiers = [
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "Lucian Gutu", email = "luciangutu@gmail.com" }]
-# TODO before release: add [project.urls] (Homepage, Repository, Issues).
+
+[project.urls]
+Homepage = "https://github.com/luciangutu/p4k"
+Repository = "https://github.com/luciangutu/p4k"
+Issues = "https://github.com/luciangutu/p4k/issues"
 
 [project.scripts]
 p4k = "p4k.app:main"
