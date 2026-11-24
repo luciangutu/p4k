@@ -2,6 +2,8 @@
 
 A terminal changelist browser for Perforce (Helix Core), in the spirit of `gitk`/`tig`.
 
+![p4k changelist list](p4k_screenshot.png)
+
 - List of submitted changelists (CL, date, user, description), loaded page by page as you scroll.
 - `Enter` on a CL opens its details: description on top, affected files on the left, diff on the right.
 - Diffs for edits, adds, deletes, moves and branches (moved/branched files are diffed against their source).
