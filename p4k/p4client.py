@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import io
 import marshal
+import os
+import signal
 import subprocess
 import threading
 from datetime import datetime
@@ -52,6 +54,25 @@ class P4Client:
         self._describe_cache: dict[int, tuple[Change, list[FileChange]]] = {}
         self._diff_cache: dict[tuple[str, int, str], FileDiff] = {}
         self._lock = threading.Lock()
+        # p4 processes currently running, so close() can kill them.
+        self._procs: set[subprocess.Popen[bytes]] = set()
+        self._closed = False
+
+    def close(self) -> None:
+        """Kill any running p4 commands and refuse to start new ones.
+
+        Called when the app exits: worker threads blocked on a slow server
+        (e.g. over VPN) would otherwise keep the process alive until p4
+        returns, since Python waits for those threads at shutdown.
+        """
+        with self._lock:
+            self._closed = True
+            procs = list(self._procs)
+        for proc in procs:
+            try:
+                os.killpg(proc.pid, signal.SIGKILL)
+            except OSError:
+                pass  # already exited
 
     # ------------------------------------------------------------------
     # Low-level command execution
@@ -59,19 +80,33 @@ class P4Client:
 
     def _run_raw(self, args: list[str]) -> bytes:
         """Run ``p4 <args>`` and return stdout as bytes."""
+        with self._lock:
+            if self._closed:
+                raise P4Error("p4 client closed")
+            try:
+                proc = subprocess.Popen(
+                    [self.p4_bin, *args],
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    # Own process group, so close() also kills children of
+                    # wrapper scripts passed via --p4.
+                    start_new_session=True,
+                )
+            except FileNotFoundError as exc:
+                raise P4Error(f"p4 executable not found: {self.p4_bin}") from exc
+            self._procs.add(proc)
         try:
-            proc = subprocess.run(
-                [self.p4_bin, *args],
-                stdin=subprocess.DEVNULL,
-                capture_output=True,
-                check=False,
-            )
-        except FileNotFoundError as exc:
-            raise P4Error(f"p4 executable not found: {self.p4_bin}") from exc
-        if proc.returncode != 0 and not proc.stdout:
-            msg = proc.stderr.decode("utf-8", errors="replace").strip()
+            stdout, stderr = proc.communicate()
+        finally:
+            with self._lock:
+                self._procs.discard(proc)
+        if self._closed:
+            raise P4Error("p4 client closed")
+        if proc.returncode != 0 and not stdout:
+            msg = stderr.decode("utf-8", errors="replace").strip()
             raise P4Error(msg or f"p4 {' '.join(args)} failed ({proc.returncode})")
-        return proc.stdout
+        return stdout
 
     def _run_tagged(self, args: list[str]) -> list[dict[str, object]]:
         """Run ``p4 -G <args>`` and return the decoded records.

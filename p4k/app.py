@@ -26,6 +26,17 @@ class P4kApp(App):
     def on_mount(self) -> None:
         self.push_screen(ChangesScreen(self.client, self.path, self.page_size, self.user))
 
+    def exit(self, *args, **kwargs) -> None:
+        # Kill in-flight p4 commands right away: their worker threads are
+        # joined at interpreter shutdown, so a slow server (VPN) would
+        # otherwise keep the terminal blocked until p4 returns.
+        self.client.close()
+        super().exit(*args, **kwargs)
+
+    def on_unmount(self) -> None:
+        # Covers exit paths that do not go through exit().
+        self.client.close()
+
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
