@@ -15,6 +15,18 @@ A terminal changelist browser for Perforce (Helix Core), in the spirit of `gitk`
 - Python 3.10+
 - The `p4` command line client in `PATH`, already configured (P4PORT, P4USER, ... via environment, `p4 set` or P4CONFIG). p4k does not handle login; run `p4 login` first if needed.
 
+## Supported platforms
+
+| OS | Status |
+|---|---|
+| Linux | Supported, primary development platform |
+| macOS | Supported (any terminal: Terminal.app, iTerm2, ...) |
+| Windows 10/11 | Supported in [Windows Terminal](https://aka.ms/terminal); the legacy `cmd.exe` console works but renders poorly |
+
+p4k is pure Python on top of [Textual](https://textual.textualize.io/) and only talks to Perforce through the `p4` client (`p4.exe` on Windows), so it behaves the same everywhere. Development and testing happen on Linux; macOS and Windows are expected to work but are not tested on every release. Please [open an issue](https://github.com/luciangutu/p4k/issues) if something breaks.
+
+The scripts in `dev/` (sample p4d server) need bash and Docker, so on Windows run them from WSL.
+
 ## Install
 
 With [pipx](https://pipx.pypa.io/) (recommended):
@@ -29,6 +41,8 @@ From a local checkout, for development:
 python3 -m venv .venv
 .venv/bin/pip install -e .
 ```
+
+On Windows, use `py -m venv .venv` and `.venv\Scripts\pip install -e .`.
 
 ## Upgrade
 

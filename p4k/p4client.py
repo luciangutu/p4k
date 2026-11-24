@@ -29,6 +29,44 @@ _DELETE_ACTIONS = {"delete", "move/delete"}
 # Actions where the file content is gone from the server.
 _NO_CONTENT_ACTIONS = {"purge", "archive"}
 
+_WINDOWS = os.name == "nt"
+
+# Start each p4 in its own process group, so close() also kills children of
+# wrapper scripts passed via --p4.
+if _WINDOWS:
+    _NEW_GROUP_KWARGS: dict[str, object] = {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
+else:
+    _NEW_GROUP_KWARGS = {"start_new_session": True}
+
+
+def _kill_tree(proc: subprocess.Popen[bytes]) -> None:
+    """Forcefully stop ``proc`` and any processes it started."""
+    if proc.poll() is not None:
+        return  # already exited
+    if _WINDOWS:
+        # taskkill /T also kills child processes (e.g. of a .bat wrapper).
+        try:
+            subprocess.run(
+                ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+                timeout=5,
+            )
+        except (OSError, subprocess.SubprocessError):
+            pass
+        if proc.poll() is None:
+            try:
+                proc.kill()
+            except OSError:
+                pass
+    else:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except OSError:
+            pass  # already exited
+
 
 class P4Error(Exception):
     """Raised when a p4 command fails or returns an error record."""
@@ -69,10 +107,7 @@ class P4Client:
             self._closed = True
             procs = list(self._procs)
         for proc in procs:
-            try:
-                os.killpg(proc.pid, signal.SIGKILL)
-            except OSError:
-                pass  # already exited
+            _kill_tree(proc)
 
     # ------------------------------------------------------------------
     # Low-level command execution
@@ -89,9 +124,7 @@ class P4Client:
                     stdin=subprocess.DEVNULL,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
-                    # Own process group, so close() also kills children of
-                    # wrapper scripts passed via --p4.
-                    start_new_session=True,
+                    **_NEW_GROUP_KWARGS,
                 )
             except FileNotFoundError as exc:
                 raise P4Error(f"p4 executable not found: {self.p4_bin}") from exc
