@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+*.egg-info/
+build/
+dist/
+# p4d binary downloaded by dev/seed.sh
+dev/p4d/p4d
