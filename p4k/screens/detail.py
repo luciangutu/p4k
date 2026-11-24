@@ -37,6 +37,9 @@ DIFF_STYLE = {
     "context": "",
 }
 
+# Narrowest the file pane may get, in terminal cells.
+MIN_FILES_WIDTH = 20
+
 
 def _common_dir(paths: list[str]) -> str:
     """Longest common directory prefix (ending in '/') of depot paths."""
@@ -66,8 +69,8 @@ class DetailScreen(Screen):
     }
     DetailScreen #panes { height: 1fr; }
     DetailScreen #files {
-        width: 40%;
-        min-width: 30;
+        /* Actual width is set from the longest file name, see _layout_file_list. */
+        width: 30;
         height: 1fr;
         border: round $secondary;
     }
@@ -93,6 +96,9 @@ class DetailScreen(Screen):
         self.client = client
         self.change = change
         self.files: list[FileChange] = []
+        self._prefix = ""  # common directory stripped from file names
+        self._files_layout: tuple[int, int] | None = None  # (pane width, entry room)
+        self._shown_file: FileChange | None = None  # file whose diff is displayed
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -138,28 +144,73 @@ class DetailScreen(Screen):
         self.change = change
         self.query_one("#info-text", Static).update(self._info_text(change))
         self.files = files
-        prefix = _common_dir([f.depot_path for f in files])
+        self._prefix = _common_dir([f.depot_path for f in files])
         file_list = self.query_one("#files", OptionList)
         file_list.border_title = f"Files ({len(files)})"
-        file_list.border_subtitle = prefix.rstrip("/") or None
-        options = []
-        for i, fc in enumerate(files):
-            marker, color = ACTION_STYLE.get(fc.action, ("?", "white"))
-            prompt = Text()
-            prompt.append(f"{marker} ", style=f"bold {color}")
-            prompt.append(fc.depot_path[len(prefix):])
-            prompt.append(f"#{fc.rev}", style="dim")
-            options.append(Option(prompt, id=str(i)))
-        file_list.add_options(options)
+        file_list.border_subtitle = self._prefix.rstrip("/") or None
+        self._layout_file_list()
         if files:
             file_list.highlighted = 0
         else:
             self.query_one("#diff", RichLog).write(Text("No files in this changelist.", style="dim"))
 
+    def on_resize(self) -> None:
+        if self.files:
+            self._layout_file_list()
+
+    def _layout_file_list(self) -> None:
+        """Size the file pane to its longest entry so the diff gets the rest.
+
+        The pane never takes more than half of the screen; paths that do not
+        fit are shortened from the left so the file name stays visible.
+        Called on load and on every terminal resize.
+        """
+        file_list = self.query_one("#files", OptionList)
+        styles = file_list.styles
+        # Horizontal border + padding, plus room for the vertical scrollbar
+        # when there are more files than visible rows.
+        chrome = styles.border.spacing.width + styles.padding.width
+        if len(self.files) > file_list.scrollable_content_region.height:
+            chrome += styles.scrollbar_size_vertical
+        max_width = max(MIN_FILES_WIDTH, self.size.width // 2)
+        avail = max_width - chrome  # cells available for one entry
+
+        prompts = [self._file_prompt(fc, avail) for fc in self.files]
+        longest = max((p.cell_len for p in prompts), default=0)
+        title_len = len(str(file_list.border_title or "")) + 4  # corners + spaces
+        width = min(max_width, max(MIN_FILES_WIDTH, longest + chrome, title_len))
+        if (width, avail) == self._files_layout:
+            return  # nothing changed, avoid rebuilding the list
+        self._files_layout = (width, avail)
+
+        highlighted = file_list.highlighted
+        file_list.clear_options()
+        file_list.add_options(Option(p, id=str(i)) for i, p in enumerate(prompts))
+        styles.width = width
+        if highlighted is not None:
+            file_list.highlighted = highlighted
+
+    def _file_prompt(self, fc: FileChange, avail: int) -> Text:
+        """File list entry: action marker, path relative to the prefix, rev."""
+        marker, color = ACTION_STYLE.get(fc.action, ("?", "white"))
+        path = fc.depot_path[len(self._prefix):]
+        rev = f"#{fc.rev}"
+        room = avail - 2 - len(rev)  # 2 = marker + space
+        if len(path) > room > 1:
+            path = "…" + path[-(room - 1):]
+        prompt = Text(no_wrap=True, overflow="ellipsis")
+        prompt.append(f"{marker} ", style=f"bold {color}")
+        prompt.append(path)
+        prompt.append(rev, style="dim")
+        return prompt
+
     @on(OptionList.OptionHighlighted, "#files")
     def _file_highlighted(self, event: OptionList.OptionHighlighted) -> None:
         idx = int(event.option.id or 0)
         fc = self.files[idx]
+        if fc == self._shown_file:
+            return  # e.g. list rebuilt after a resize
+        self._shown_file = fc
         diff_log = self.query_one("#diff", RichLog)
         diff_log.border_title = f"Diff · {fc.depot_path}#{fc.rev} ({fc.action}, {fc.file_type})"
         diff_log.clear()

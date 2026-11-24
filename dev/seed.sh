@@ -98,6 +98,15 @@ as bob edit main/assets/logo.png >/dev/null
 head -c 4096 /dev/urandom > main/assets/logo.png
 submit bob "Update logo"
 
+# --- Many files with long paths (exercises the file pane width) -----------
+as carol sync -q >/dev/null
+deep=main/very/deeply/nested/directory/structure/for/testing/width
+mkdir -p "$deep"
+for i in $(seq 1 30); do echo "file $i" > "$deep/a_rather_long_file_name_number_$i.cpp"; done
+echo "short" > main/short.c
+as carol add "$deep"/*.cpp main/short.c >/dev/null
+submit carol "Many files with long paths"
+
 # --- Many small edits to exercise paging -----------------------------------
 users=(alice bob carol)
 for n in $(seq 1 240); do
@@ -107,5 +116,8 @@ for n in $(seq 1 240); do
     echo "Line $n added by $u" >> main/docs/README.md
     submit "$u" "Docs update #$n by $u"
 done
+
+# --- Realistic multi-file code change (newest CL, for screenshots) ----------
+"$HERE/demo_cl.sh"
 
 echo "Seeded $(p4 changes -s submitted | wc -l) changelists on $P4PORT"
