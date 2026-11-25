@@ -122,8 +122,8 @@ class DetailScreen(Screen):
         text = Text()
         text.append(f"{ch.user}", style="bold")
         text.append(f"@{ch.client}", style="dim")
-        text.append(f"  {ch.date:%Y-%m-%d %H:%M:%S}\n\n", style="dim")
-        text.append(ch.description)
+        text.append(f"  {ch.date:%Y-%m-%d %H:%M:%S}\n", style="dim")
+        text.append(ch.description.strip("\n"))
         return text
 
     # ------------------------------------------------------------------
